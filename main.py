@@ -1,8 +1,10 @@
-import os, sys
+import os
+import sys
 
 from apiWidget import ApiWidget
 from loadingLbl import LoadingLabel
 from script import load_client, get_tts, get_stt
+from speechToTextWidget import SpeechToTextWidget
 from textToSpeechWidget import TextToSpeechWidget
 
 # Get the absolute path of the current script file
@@ -14,9 +16,9 @@ project_root = os.path.dirname(os.path.dirname(script_path))
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.getcwd())  # Add the current directory as well
 
-from PyQt5.QtWidgets import QMainWindow, QPushButton, QApplication, QWidget, QHBoxLayout, QLineEdit, QLabel, QTabWidget, \
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QLabel, QTabWidget, \
     QVBoxLayout
-from PyQt5.QtCore import Qt, QCoreApplication, QThread, QSettings
+from PyQt5.QtCore import Qt, QCoreApplication, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 
 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
@@ -26,18 +28,19 @@ QApplication.setFont(QFont('Arial', 12))
 
 
 class Thread(QThread):
-    def __init__(self, f, text='', filename=''):
+    sttFinished = pyqtSignal(str)
+
+    def __init__(self, f, text=''):
         super(Thread, self).__init__()
         self.__f = f
         self.__text = text
-        self.__filename = filename
 
     def run(self):
         try:
             if self.__f == 0:
                 get_tts(self.__text)
             else:
-                get_stt(self.__filename)
+                self.sttFinished.emit(get_stt(self.__text))
         except Exception as e:
             raise Exception(e)
 
@@ -56,9 +59,12 @@ class MainWindow(QMainWindow):
         self.__textToSpeechWidget = TextToSpeechWidget()
         self.__textToSpeechWidget.activated.connect(self.__ttsRun)
 
+        self.__speechToTextWidget = SpeechToTextWidget()
+        self.__speechToTextWidget.activated.connect(self.__sttRun)
+
         tabWidget = QTabWidget()
         tabWidget.addTab(self.__textToSpeechWidget, 'Text-to-Speech')
-        tabWidget.addTab(QLabel('Currently Working!'), 'Speech-to-Text')
+        tabWidget.addTab(self.__speechToTextWidget, 'Speech-to-Text')
 
         self.__loadingLbl = LoadingLabel()
         self.__loadingLbl.setEnabled(False)
@@ -81,13 +87,14 @@ class MainWindow(QMainWindow):
         f = 0
         self.__run(f, text)
 
-    def __sttRun(self):
+    def __sttRun(self, filename):
         f = 1
-        self.__run(f)
+        self.__run(f, filename)
 
     def __run(self, f, text):
         self.__t = Thread(f, text)
         self.__t.started.connect(self.__started)
+        self.__t.sttFinished.connect(self.__speechToTextWidget.setResultText)
         self.__t.finished.connect(self.__finished)
         self.__t.start()
 

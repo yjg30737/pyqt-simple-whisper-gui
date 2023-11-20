@@ -34,6 +34,6 @@ def get_tts(text, model='tts-1', voice='alloy'):
 def get_stt(filename, model='whisper-1'):
   transcript = client.audio.transcriptions.create(
     model="whisper-1",
-    file=filename
+    file=Path(filename)
   )
   return transcript.text
